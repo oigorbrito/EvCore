@@ -20,7 +20,7 @@ mod schema;
 
 pub use model::MemoryModel;
 use permissions::{open_owner_only, restrict};
-use schema::{MIGRATE_V1_TO_V2, RECORD_COLUMNS, SCHEMA, SCHEMA_VERSION};
+use schema::{set_wal, MIGRATE_V1_TO_V2, RECORD_COLUMNS, SCHEMA, SCHEMA_VERSION};
 
 pub const MEMORY_SEARCH_TOOL: &str = "memory_search";
 pub const MEMORY_MANAGE_TOOL: &str = "memory_manage";
@@ -76,37 +76,6 @@ pub struct MemoryRecord {
 pub struct MemoryStore {
     connection: Arc<Mutex<Connection>>,
     path: Arc<PathBuf>,
-}
-
-/// Switch a fresh connection to WAL, tolerating a concurrent first open.
-///
-/// SQLite answers a journal-mode change with `SQLITE_BUSY` without consulting
-/// the busy handler while another connection holds the database, so the
-/// configured `busy_timeout` does not cover this one statement. Retry within
-/// the same budget, and accept the mode another opener has already installed.
-fn set_wal(connection: &Connection) -> Result<(), MemoryError> {
-    let deadline = std::time::Instant::now() + Duration::from_secs(2);
-    loop {
-        match connection.pragma_update(None, "journal_mode", "WAL") {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                let busy = matches!(
-                    error.sqlite_error_code(),
-                    Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
-                );
-                let wal = connection
-                    .pragma_query_value(None, "journal_mode", |row| row.get::<_, String>(0))
-                    .is_ok_and(|mode| mode.eq_ignore_ascii_case("wal"));
-                if wal {
-                    return Ok(());
-                }
-                if !busy || std::time::Instant::now() >= deadline {
-                    return Err(error.into());
-                }
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        }
-    }
 }
 
 impl MemoryStore {

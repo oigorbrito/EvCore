@@ -39,4 +39,5 @@ fn ctx() -> ToolContext {
 
 include!("tools/files_and_shell.rs");
 include!("tools/glob_process_admin.rs");
+include!("tools/fs_admin.rs");
 include!("tools/process_host.rs");
