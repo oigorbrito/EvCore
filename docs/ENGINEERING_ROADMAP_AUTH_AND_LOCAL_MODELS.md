@@ -333,17 +333,17 @@ Normativas:
 - RFC 8628 — OAuth 2.0 Device Authorization Grant.
 - RFC 9700 — Best Current Practice for OAuth 2.0 Security.
 
-Externas (a registrar com SHA e data na Fase 0):
+Externas (SHA de HEAD coletado em 2026-11-16 via `git ls-remote`; a Fase 0 deve fixar o SHA exato examinado):
 
-- Orca Harness (upstream): `https://github.com/okikorg/orca-harness`, commit `2a9fd399…` conforme `PROVENANCE.md`.
-- Pi: referência de comparação; URL e SHA a registrar.
-- Marshall: referência de comparação; **nome e URL a confirmar**.
+- Orca Harness (upstream): `https://github.com/okikorg/orca-harness`. Baseline do EvCore: `2a9fd399…`. HEAD coletado: `d89bf274c225075ae3f3b1f305a4717e05990ab7`.
+- Pi: `https://github.com/earendil-works/pi`. HEAD coletado: `c8c456c85c6e0256be620ab73dc59d3522dbfeaa`.
+- Marshall (`agention-marshall`): `https://github.com/LaurentZuijdwijk/agention-marshall`. HEAD coletado: `d4a5410ece38fdccf52dea0c5655148cba040fdf`.
 
 ---
 
 ## J. Pendências abertas
 
-1. Confirmar o que é “Marshall” e onde está o repositório.
-2. Recheckar, na Fase 0, o SHA e a árvore do upstream declarados em `PROVENANCE.md`.
-3. Confirmar o comportamento do provedor no device flow (H4) pela documentação oficial.
-4. Decidir se o fallback de `openai` sem chave (C.4) é intencional.
+
+1. Recheckar, na Fase 0, o SHA e a árvore do upstream declarados em `PROVENANCE.md`.
+2. Confirmar o comportamento do provedor no device flow (H4) pela documentação oficial.
+3. Decidir se o fallback de `openai` sem chave (C.4) é intencional.
