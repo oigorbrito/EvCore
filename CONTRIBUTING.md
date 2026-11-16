@@ -1,16 +1,26 @@
-# Contributing to Orca Harness
+# Contributing to EvCore
 
 Contributions are welcome: bug reports, docs fixes, new providers, tools and
 extensions.
 
+EvCore is derived from [Orca Harness](https://github.com/okikorg/orca-harness).
+Issues and pull requests for EvCore go to this repository. Problems that also
+exist in upstream Orca Harness can be reported there too, but keep EvCore
+reports in EvCore.
+
 ## Workflow
 
-1. Open an [issue](https://github.com/okikorg/orca-harness/issues) to report a
+1. Open an [issue](https://github.com/oigorbrito/EvCore/issues) to report a
    bug or discuss a change before you build it.
 2. Fork, branch, and keep the change focused. Match the surrounding code and
    add tests for behavior you change.
 3. Run `cargo test --workspace`, `cargo clippy --workspace --all-targets` and
    `cargo fmt --all` before opening a pull request.
+
+Compatibility names stay as they are: crate names `orcacode` and
+`orca-harness-*`, the `orcacode` binary, `ORCA_*` variables, and the
+configuration, session and credential paths. Do not rename them in a
+contribution. See [PROVENANCE.md](PROVENANCE.md) for the full list.
 
 ## Using AI tools and agents
 
@@ -34,6 +44,11 @@ it need human review:
   they were written.
 - If you are running an agent on this repo, configure it to ask before editing
   `crates/harness-core`.
+
+## Releases
+
+EvCore has no release channel yet. Do not add tags, release workflows or
+publishing steps in a contribution. See [ci/README.md](ci/README.md).
 
 ## License
 

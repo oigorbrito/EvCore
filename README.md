@@ -4,31 +4,30 @@
 
 **A small, fast coding agent for your terminal, built on an embeddable Rust agent harness.**
 
-One static binary (6.5 MB on macOS). One process. Any model.
+One terminal binary. One process. Any model.
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/okikorg/orca-harness?label=release)](https://github.com/okikorg/orca-harness/releases)
-[![Docs](https://img.shields.io/badge/docs-field%20manual-black.svg)](https://orcapods.ai/orcacode/docs/#start)
 [![Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](rust-toolchain.toml)
 
-[Install](#install) · [Quick start](#quick-start) · [Docs](https://orcapods.ai/orcacode/docs/#start) · [Embed the harness](#embed-the-harness) · [Contributing](#contributing)
+[Install](#install) · [Quick start](#quick-start) · [Embed the harness](#embed-the-harness) · [Contributing](#contributing)
 
 </div>
 
-> **Baseline provenance.** EvCore starts from
-> [Orca Harness](https://github.com/okikorg/orca-harness) commit
-> `2a9fd399cfbbaad773e3cbed92bb6e24d7561f01` (tree
+> **Origin.** EvCore is a terminal coding agent built on the Orca Harness
+> kernel. Its baseline is [Orca Harness](https://github.com/okikorg/orca-harness)
+> commit `2a9fd399cfbbaad773e3cbed92bb6e24d7561f01` (tree
 > `9c35d0dd0d7e0f226063f16dd80161e231628e2b`); see [PROVENANCE.md](PROVENANCE.md).
-> Only the public identity differs: the welcome card, prompts and CLI guidance
-> say EvCore, and an `evcore` executable is built alongside `orcacode`. The
-> upstream updater is disabled for both executables. Crate names, `ORCA_*`
-> variables, configuration and session paths, APIs and authentication are
-> unchanged. To build and run locally: `cargo run -p orcacode --bin evcore`.
-> The original documentation below, including installers, release links,
-> screenshots and performance figures, describes upstream Orcacode, not
-> EvCore releases or EvCore measurements. No EvCore release is published.
-> The upstream license and notices are retained in [LICENSE](LICENSE) and
-> [NOTICE](NOTICE).
+> EvCore has its own public identity: the welcome card, prompts and CLI guidance
+> say EvCore, and the `evcore` executable is built alongside the `orcacode`
+> compatibility binary. Crate names, `ORCA_*` variables, configuration and
+> session paths, credentials, APIs and authentication are unchanged.
+>
+> The upstream updater is disabled, and EvCore has no release channel yet, so
+> nothing is published. Build from source. Sections that link to the Orca
+> Harness or Orcacode installers, releases, field manual, screenshots or
+> benchmark figures are upstream reference material, not EvCore releases or
+> EvCore measurements. The upstream license and notices are retained in
+> [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## What it is
 
@@ -53,7 +52,7 @@ One static binary (6.5 MB on macOS). One process. Any model.
 
 </div>
 
-Orcacode is a terminal coding agent. It reads your repo, runs commands, edits
+EvCore is a terminal coding agent. It reads your repo, runs commands, edits
 files, and delegates work to parallel subagents, and it asks before any of
 that touches your machine. You can sign in with ChatGPT, use an API key, or
 point it at a local model.
@@ -61,16 +60,16 @@ point it at a local model.
 Underneath is **Orca Harness**, a minimal agent execution kernel. The loop is
 small and fast: it fans out 100 parallel tool calls in well under a
 millisecond. Everything else (memory, MCP, policy, retries, sessions) plugs in
-as an extension. Orcacode is one host built on it, and you can build your own
+as an extension. EvCore is one host built on it, and you can build your own
 through the Rust SDK.
 
 > **The loop is sacred. Everything around it is extensible.**
 
-## Why Orcacode
+## Why EvCore
 
 - **Tiny and native.** A single static binary with no Node, Python or Bun
-  runtime to install. It idles at about 26 MB. See the
-  [comparison](#footprint).
+  runtime to install. The upstream host idled at about 26 MB; see the
+  [upstream comparison](#footprint).
 - **You approve what runs.** Gated tools ask first. Plan mode is read-only; any shell command there asks every time.
   Orchestrate mode delegates. Auto mode reviews only the risky calls. Yolo
   mode is loud about being yolo.
@@ -86,30 +85,23 @@ through the Rust SDK.
 
 ## Install
 
-macOS and Linux:
+EvCore has no published release yet, and its installers and update channel
+are not configured. Build it from source with Rust stable (selected by
+`rust-toolchain.toml`):
 
 ```sh
-curl -fsSL https://orcapods.ai/orcacode.sh | sh
+git clone https://github.com/oigorbrito/EvCore
+cd EvCore
+cargo build --release -p orcacode
+./target/release/evcore --help
 ```
 
-Windows (PowerShell):
+The build produces two executables from the same crate: `evcore`, the EvCore
+entry point, and `orcacode`, kept for compatibility. `evcore update` and
+`orcacode update` exit with an error, because the upstream updater is disabled.
 
-```powershell
-irm https://orcapods.ai/orcacode.ps1 | iex
-```
-
-The installer picks the right build for your OS and architecture, checks its
-SHA-256 checksum, and writes one executable to `~/.local/bin`. Every release
-is also on the [releases page](https://github.com/okikorg/orca-harness/releases)
-with a `SHA256SUMS` file. `orcacode update` upgrades in place.
-
-From source (Rust stable, selected by `rust-toolchain.toml`):
-
-```sh
-git clone https://github.com/okikorg/orca-harness
-cd orca-harness
-cargo run --release -p orcacode
-```
+The upstream installers (`orcapods.ai/orcacode.sh` and `orcacode.ps1`) install
+upstream Orcacode, not EvCore, so do not use them for EvCore.
 
 ## Quick start
 
@@ -117,14 +109,14 @@ Run it from the repository you want it to work in:
 
 ```sh
 cd your-repo
-orcacode --plan        # read-only first session: it explores and proposes, never edits
+evcore --plan        # read-only first session: it explores and proposes, never edits
 ```
 
 Pick a model:
 
 | Provider             | How                                                                            |
 | :------------------- | :----------------------------------------------------------------------------- |
-| ChatGPT subscription | run `orcacode`, type `/provider`, pick `openai-codex`, complete the device login |
+| ChatGPT subscription | run `evcore`, type `/provider`, pick `openai-codex`, complete the device login |
 | OpenAI API           | set `OPENAI_API_KEY`                                                           |
 | Anthropic            | set `ANTHROPIC_API_KEY` and pass `--anthropic`                                  |
 | OpenRouter           | set `OPENROUTER_API_KEY` and pass `--openrouter`                               |
@@ -143,9 +135,9 @@ grant for this workspace, and `n` denies. Switch modes live with `/mode`.
 Run a prompt unattended, for scripts and CI:
 
 ```sh
-orcacode -p "Summarize the failing tests"            # transcript to the terminal
-orcacode --json -p "Summarize the failing tests"     # one NDJSON event per line
-orcacode --bare --no-session -p "List the files here" # read-only tools, no extras
+evcore -p "Summarize the failing tests"            # transcript to the terminal
+evcore --json -p "Summarize the failing tests"     # one NDJSON event per line
+evcore --bare --no-session -p "List the files here" # read-only tools, no extras
 ```
 
 The [start guide](https://orcapods.ai/orcacode/docs/#start) goes from here to
@@ -167,10 +159,11 @@ a full multi-provider setup in three steps.
 
 ## Embed the harness
 
-Orcacode is a reference host. The same kernel is a library.
-`orca-harness-sdk` composes models, tools, sessions, memory, skills, MCP,
-subagents and workflows behind one dependency. It isn't on crates.io yet, so
-depend on it by tag:
+EvCore is one host on the Orca Harness kernel, and the same kernel is a
+library. `orca-harness-sdk` composes models, tools, sessions, memory, skills,
+MCP, subagents and workflows behind one dependency. It isn't on crates.io yet.
+The example below is the upstream one, pinned to an upstream tag; inside this
+repository, depend on `crates/sdk` by path instead:
 
 ```toml
 [dependencies]
@@ -252,12 +245,15 @@ container through an `Executor` (`Executor::ssh("user@host")`,
 | `crates/extensions`         | events, policy, memory, compaction, truncation, retry, usage, sessions          |
 | `crates/harness-dag`        | validated DAG workflows with dynamic map expansion                              |
 | `crates/sdk`                | the high-level Rust facade                                                      |
-| `crates/cli`                | `orcacode`, the terminal host                                                   |
+| `crates/cli`                | `evcore` and `orcacode`, the terminal host                                                   |
 
 [`docs/crate-diagram.md`](docs/crate-diagram.md) has the dependency graph and
 [`docs/design.html`](docs/design.html) walks through the design.
 
 ## Performance
+
+The figures below are upstream Orcacode 0.7.0 measurements from Orca Harness.
+They were not measured for EvCore and do not describe an EvCore build.
 
 <div align="center">
 
@@ -401,7 +397,7 @@ cancellation tests prove propagation into in-flight fan-out.
 Contributions are welcome: bug reports, docs fixes, new providers, tools and
 extensions.
 
-1. Open an [issue](https://github.com/okikorg/orca-harness/issues) to report a
+1. Open an [issue](https://github.com/oigorbrito/EvCore/issues) to report a
    bug or discuss a change before you build it.
 2. Fork, branch, and keep the change focused. Match the surrounding code and
    add tests for behavior you change.
@@ -416,13 +412,15 @@ Apache License 2.0.
 
 ## Get involved
 
-- **Try it:** `curl -fsSL https://orcapods.ai/orcacode.sh | sh`, then `orcacode --plan` in any repo.
-- **Star the repo** if Orcacode is useful to you. It helps other people find it.
-- **Read the [field manual](https://orcapods.ai/orcacode/docs/#start)** for every mode, tool and command.
-- **Tell us what broke** or what you want next in [issues](https://github.com/okikorg/orca-harness/issues).
+- **Try it:** `cargo build --release -p orcacode`, then run `target/release/evcore --plan` in any repo.
+- **Star the repo** if EvCore is useful to you. It helps other people find it.
+- **Read the upstream [field manual](https://orcapods.ai/orcacode/docs/#start)** for the modes, tools and commands inherited from Orcacode.
+- **Tell us what broke** or what you want next in [EvCore issues](https://github.com/oigorbrito/EvCore/issues).
 
 ## License
 
-Orcacode and Orca Harness are licensed under the
-[Apache License, Version 2.0](LICENSE). Copyright 2026 Okik Org. See
-[`NOTICE`](NOTICE).
+EvCore is derived from Orca Harness and Orcacode, which are licensed under the
+[Apache License, Version 2.0](LICENSE). The upstream copyright notice
+(Copyright 2026 Okik Org) is retained in [`LICENSE`](LICENSE) and
+[`NOTICE`](NOTICE). Changes made for EvCore are listed in
+[PROVENANCE.md](PROVENANCE.md).

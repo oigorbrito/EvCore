@@ -1,56 +1,32 @@
 # ci
 
-Scripts and workflows for orca-harness.
+Scripts and workflows for EvCore, derived from Orca Harness.
 
-## Releasing orcacode
+## Releases are disabled
 
-The release runs in the only order that keeps GitHub the source of truth:
-notes, then the version commit, then the tag. The Makefile wraps
-`ci/release.sh`, and each step checks the one before it.
+EvCore has no release channel of its own yet, so this repository does not
+publish anything. The upstream release pipeline was removed from
+`.github/workflows/` and its publishing steps are disabled:
 
-```sh
-make notes VERSION=0.3.0       # drafts docs/releases/0.3.0.md from the commits since the last tag
-$EDITOR docs/releases/0.3.0.md # write the highlights; the draft groups commits by type
-make release VERSION=0.3.0     # prepare (bump, Cargo.lock, commit), push, tag
-```
+- `.github/workflows/release-orcacode.yml` (which created GitHub Releases for
+  `orcacode-v*` tags and pushed binaries to the Orca release host) is gone.
+  Its history stays in git.
+- `ci/release.sh` refuses `notes`, `prepare`, `tag`, `build` and `publish`
+  with an error.
+- The `Makefile` release targets (`notes`, `prepare`, `tag`, `release`,
+  `dist`, `publish`) fail with the same message.
 
-`make release` is `make prepare`, `git push origin HEAD`, and `make tag`;
-run them one at a time when you want to look between steps. `make help`
-lists everything, including the development targets (`check`, `test`,
-`size`, `bench`) that mirror CI.
-
-Pushing the tag runs `.github/workflows/release-orcacode.yml`: it builds the
-five targets, writes `SHA256SUMS`, creates the GitHub Release with
-`docs/releases/0.3.0.md` as its body and the archives attached, then pushes
-the same files to the release host (repository variable `RELEASES_URL`,
-secret `RELEASES_ADMIN_TOKEN`). The host also mirrors GitHub Releases on a
-schedule when it has a `GITHUB_TOKEN`, so the push only makes the version
-available at once.
-
-`prepare` refuses a dirty tree or a notes file that still carries the draft
-placeholder line. `tag` refuses a version that does not match `Cargo.toml`,
-a tag that already exists, or a `HEAD` that is not on `origin/main`.
-
-### Without CI
-
-On a Mac with `zig`, `cargo-zigbuild`, and the five rust targets installed
-(`brew install zig cargo-zigbuild`; `rustup target add <target>`), the same
-release can be cut by hand after `tag`:
-
-```sh
-make dist VERSION=0.3.0        # all five targets into dist/release/0.3.0 plus SHA256SUMS
-make publish VERSION=0.3.0     # GitHub Release from dist, then the host if RELEASES_ADMIN_TOKEN is set
-```
-
-`publish` creates the GitHub Release first and pushes to the host second,
-never the other way round. Set `RELEASES_URL` to point at a different host.
+No workflow replaces them. Re-enabling a release requires a decision recorded
+in `PROVENANCE.md` and a new, reviewed pipeline with its own assets, host and
+version policy.
 
 ## Checks
 
 - `check-binary-size.sh <path>`: the uncompressed release binary must stay strictly under 6,700,000 bytes (6.7 decimal MB), or 9,000,000 bytes for a static `*-linux-musl` target, which carries its own libc.
 - `check-source-size.sh`: every source file under `crates/` stays below 600 lines.
 
-Both run in the release workflow; `release.sh` runs them locally too.
+Both run in `.github/workflows/ci.yml` (the `size` job and the `lint` job);
+`check-source-size.sh` is also run by `make audit`.
 
 ## Parked workflows
 

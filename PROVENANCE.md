@@ -92,14 +92,90 @@ No replacement update mechanism was added.
 The template's `README.md` and `evidence-repo-template/` (19 files) are not in
 this tree. They remain in the ancestor commit `a1d4252f`.
 
+## Bootstrap identity and release lockdown
+
+This section covers changes made on branch `bootstrap/evcore-initial-base`
+after the import above. Its base is the commit `0de23d35afa648d32e31c9c86a4665e849af6727`.
+
+### Metadata
+
+- `Cargo.toml` (`[workspace.package]`): `repository` and `homepage` point to
+  `https://github.com/oigorbrito/EvCore`. No other domain is used.
+- `crates/cli/Cargo.toml`: the package description identifies EvCore.
+- `CONTRIBUTING.md`: issues and contributions go to `oigorbrito/EvCore`.
+- `README.md`: presents EvCore as the product, explains its origin in Orca
+  Harness, and marks upstream installers, releases, field manual, screenshots
+  and benchmark figures as upstream reference. The upstream installer commands
+  were removed from the install section, because they install upstream Orcacode.
+
+### Release channel blocked
+
+Decision: EvCore has no release channel of its own yet, so nothing from this
+repository is published. The upstream channel was an external publication
+path: it created GitHub Releases for `orcacode-v*` tags and pushed binaries
+with an admin token to a fixed external host (`releases-production-7656.up.railway.app`).
+
+- `.github/workflows/release-orcacode.yml` is removed from the active
+  workflows directory. No replacement workflow was added. Its history stays
+  in git.
+- `ci/release.sh` refuses `notes`, `prepare`, `tag`, `build` and `publish`.
+  The publishing code is still in the file, but nothing reaches it.
+- `Makefile`: `notes`, `prepare`, `tag`, `release`, `dist` and `publish`
+  fail. The former `git push origin HEAD` in `release` is gone.
+- `ci/README.md` and `CONTRIBUTING.md` state that releases are disabled.
+- No tag, GitHub Release, binary upload or host push was created or run.
+- The updater stays disabled and fails closed: `update` exits with status 1
+  and makes no network call (see "Approved functional change" above).
+
+To enable releases later, record a new decision here, define the EvCore
+assets, version policy, update endpoint and credentials, and review a new
+pipeline. Do not reuse the removed workflow or the `orcapods.ai` and Orca host
+endpoints.
+
+### CI
+
+- `.github/workflows/ci.yml` also runs on `push` to
+  `bootstrap/evcore-initial-base`. The existing gates are unchanged: fmt,
+  source size, clippy, tests, benchmark reporting tests, bench smoke, and the
+  release binary size.
+
+### Verification record
+
+Host: Windows, rustc/cargo 1.99.1, `CARGO_BUILD_JOBS=2`. Baseline comparisons
+ran on a `git archive` of `0de23d35`.
+
+- `cargo fmt --all --check`: PASS.
+- `cargo build --release -p orcacode`: PASS. `evcore` and `orcacode` run;
+  `update` exits 1 for both. The 6.7 MB size gate is defined for the Linux and
+  macOS CI builds and was not evaluated on this Windows binary.
+- `cargo test -p orcacode --test evcore_identity` (identity and updater
+  safety): PASS, 3/3.
+- `cargo test --workspace`: not green on Windows. The same failures appear on
+  the baseline: `orca-harness-extensions` session rotation (rename of an open
+  directory), `orca-harness-sdk` processes and skills (`sh`, program lookup,
+  Windows source paths), `orca-harness-tool-extensions` agent plugin cwd,
+  `orcacode` tests for path separators, clipboard paths and `/etc/passwd`, and
+  `orca-harness-tools` burst and core-tools tests, which hang on Windows. Not
+  caused by this change; not verified on Linux.
+- `orca-harness-sandbox-providers`: BLOCKED on Windows, since its test code uses
+  `std::os::unix` without a `cfg` gate.
+- `cargo clippy --workspace --all-targets -- -D warnings`: FAIL, pre-existing.
+  `orca-harness-core` trips `result_large_err` under this toolchain, and other
+  crates have lint errors. No lint was allowed to make the gate pass.
+
+### Scheduled benchmarks not changed
+
+`.github/workflows/bench-live.yml` still runs on a daily schedule and may call
+external model APIs. It is outside this change. It was not run.
+
 ## Not changed
 
 These items stay as they are in the baseline: crate and package names
 (`orcacode`, `orca-harness-*`), `ORCA_*` variables, configuration, session and
 credential paths (`orcacode/…`), the `orcacode/<version>` user agent, the
 OpenRouter title "Orca Code" (PR #188 also kept it), the `orca` theme, plugin
-manifest paths, APIs, protocols, authentication, workflows (including
-`release-orcacode.yml`), `docs/`, `LICENSE` and `NOTICE`.
+manifest paths, APIs, protocols, authentication, the remaining workflows, `docs/` (upstream reference), `LICENSE` and
+`NOTICE`. The release workflow was removed in the section above.
 
 The FineCore README provenance block is not imported, because it describes a
 different base. FineCore-specific tooling under `legacy/` is not imported

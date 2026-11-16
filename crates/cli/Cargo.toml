@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Orca Code: interactive terminal host for Orca Harness. Streaming REPL, tool approvals, headless mode."
+description = "EvCore: interactive terminal coding agent built on Orca Harness. Streaming REPL, tool approvals, headless mode."
 build = "build.rs"
 
 [[bin]]

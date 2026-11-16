@@ -2,10 +2,9 @@
 #
 #   make help                     every target
 #   make check test               what CI runs before a merge
-#   make notes VERSION=0.3.0      start a release (then edit docs/releases/0.3.0.md)
-#   make release VERSION=0.3.0    prepare, push, tag: CI builds and publishes
+#   make notes VERSION=0.3.0      disabled: EvCore has no release channel yet
 #
-# Release targets wrap ci/release.sh and take VERSION=X.Y.Z.
+# Release targets are disabled (fail closed); see PROVENANCE.md.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -58,28 +57,10 @@ bench-all: build  ## every suite bench.yml runs, budgets informational off Linux
 	./benchmarks/subagent/run.sh --quick
 	./benchmarks/subagent/sim.sh --quick
 
-## Release: notes, edit the file, prepare, push, tag (VERSION=X.Y.Z)
+## Release (disabled)
 
-notes:  ## draft docs/releases/VERSION.md from the commits since the last tag
-	$(require_version)
-	./ci/release.sh notes $(VERSION)
-
-prepare:  ## bump the workspace version, refresh Cargo.lock, commit with the notes
-	$(require_version)
-	./ci/release.sh prepare $(VERSION)
-
-tag:  ## tag orcacode-vVERSION and push it; CI builds and publishes
-	$(require_version)
-	./ci/release.sh tag $(VERSION)
-
-release: prepare  ## prepare, push, tag in one go, once the notes are written
-	git push origin HEAD
-	./ci/release.sh tag $(VERSION)
-
-dist:  ## no-CI fallback: build all five targets into dist/release/VERSION
-	$(require_version)
-	./ci/release.sh build $(VERSION)
-
-publish:  ## no-CI fallback: GitHub Release from dist, then the release host
-	$(require_version)
-	./ci/release.sh publish $(VERSION)
+# Disabled: EvCore has no release channel. These targets used to tag, build and
+# publish upstream Orcacode, and the script now refuses them (ci/release.sh).
+notes prepare tag release dist publish:  ## disabled: no EvCore release channel
+	@echo "release is disabled for EvCore: no EvCore release channel is configured (see PROVENANCE.md)" >&2
+	@exit 1

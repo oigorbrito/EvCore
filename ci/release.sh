@@ -39,6 +39,14 @@ cmd="${1:-}"
 version="${2:-}"
 [[ -n "$cmd" ]] || usage 1
 [[ "$cmd" == "-h" || "$cmd" == "--help" ]] && usage 0
+
+# EvCore has no release channel yet. Every command below would tag, build or
+# publish upstream Orcacode (GitHub Release, release host). Fail closed until an
+# EvCore channel is defined; see PROVENANCE.md.
+case "$cmd" in
+  notes|prepare|tag|build|publish)
+    die "release is disabled for EvCore: no EvCore release channel is configured (see PROVENANCE.md)" ;;
+esac
 [[ -n "$version" ]] || die "usage: ci/release.sh $cmd <version>   (for example 0.3.0)"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "version must look like X.Y.Z, got '$version'"
 tag="${TAG_PREFIX}${version}"

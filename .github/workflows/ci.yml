@@ -11,7 +11,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, bootstrap/evcore-initial-base]
   pull_request:
     branches: [main]
   workflow_dispatch:
