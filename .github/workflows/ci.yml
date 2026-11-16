@@ -52,13 +52,15 @@ jobs:
       - name: fmt
         run: cargo fmt --all --check
 
-      # Two views of the same limit: the shell gate is what release.sh runs
-      # locally and is the authority; the audit prints the largest files so
-      # the ones approaching the limit are visible before they cross it.
+      # The shell gate remains authoritative. Give the report its own step so
+      # it can run and expose the complete file list when this gate fails.
       - name: source size
-        run: |
-          ./ci/check-source-size.sh
-          python3 scripts/audit_crates.py --top 25
+        id: source_size
+        run: ./ci/check-source-size.sh
+
+      - name: crate size audit
+        if: ${{ !cancelled() && steps.source_size.outcome != 'skipped' }}
+        run: python3 scripts/audit_crates.py --top 25
 
   clippy:
     name: clippy
