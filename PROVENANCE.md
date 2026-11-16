@@ -73,18 +73,25 @@ In EvCore, either path would replace EvCore with upstream Orcacode.
   network call and starts no installer.
 - `crates/cli/src/runtime/interactive.rs`: the startup update check is removed.
 
-No replacement update mechanism was added.
+No replacement update mechanism was added. The upstream unit tests in
+`update.rs` (`updater_uses_the_public_installer_and_propagates_download_failures`
+and `update_comparison_is_numeric_and_fails_closed`) were removed with the code
+they tested. `tests/evcore_identity.rs` covers the disabled path instead.
 
 ### Deviations from PR #188
 
 - `evcore_identity.rs` drops `--provider local`. The baseline has no
   `--provider` flag, and `--base-url` already selects the local provider.
 - `core_4_welcome_help.rs::welcome_centres_the_visible_card_not_its_maximum_width`
-  compares against the widest visible card row. PR #188 kept the subtitle as
-  the reference and added a ±1 cell tolerance. The upstream test assumed the
-  subtitle was the widest row, but the shorter EvCore subtitle is not, so a
-  tolerance cannot fix that. Rendering is unchanged, and the exact upstream
-  assertion is restored.
+  is an adaptation, not a restored upstream assertion. The upstream test looks
+  up the upstream subtitle text ("A small, fast agent runtime for your
+  terminal") and uses its length as the card width. EvCore's subtitle is
+  different, so that text cannot be found and the upstream assertion cannot run
+  unchanged. The EvCore test keeps the same property, that the indent equals
+  `(90 - W) / 2`, but takes `W` from the widest rendered card row (trailing
+  spaces trimmed, indent removed). The ±1 cell tolerance from PR #188 is not
+  used. Rendering is unchanged. Reviewers should confirm this adapted assertion
+  is acceptable.
 - Text produced by the mechanical rename uses "an EvCore" instead of "a EvCore".
 
 ### Template files
@@ -138,6 +145,27 @@ endpoints.
   `bootstrap/evcore-initial-base`. The existing gates are unchanged: fmt,
   source size, clippy, tests, benchmark reporting tests, bench smoke, and the
   release binary size.
+
+### Fidelity against upstream
+
+Compared with upstream tree `9c35d0dd0d7e0f226063f16dd80161e231628e2b`, the
+commit `2a9fd399cfbbaad773e3cbed92bb6e24d7561f01` was re-fetched and confirmed
+to resolve to that tree.
+
+- 1,103 blobs in HEAD against 1,101 upstream: 1,076 unchanged files (same
+  blob ids, same modes), 27 modified, 3 added and 1 removed (the release
+  workflow).
+- No mode changes. `ci/release.sh` keeps mode `100755`.
+- `LICENSE` and `NOTICE` are byte-identical to upstream.
+- Modified: `ci.yml`, `CONTRIBUTING.md`, `Cargo.toml`, `Makefile`, `README.md`,
+  `ci/README.md`, `ci/release.sh`, `crates/cli/Cargo.toml`, and 19 Rust files
+  under `crates/cli/src`, as listed in "Differences from the upstream tree" and
+  "Bootstrap identity and release lockdown".
+- Added: `PROVENANCE.md`, `crates/cli/src/evcore.rs`,
+  `crates/cli/tests/evcore_identity.rs`.
+- Removed: `.github/workflows/release-orcacode.yml`.
+- History: three commits. The template `a1d4252` is the only ancestor. Neither
+  upstream nor FineCore commits are in the history, and no tags or stashes exist.
 
 ### Verification record
 
