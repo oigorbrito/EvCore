@@ -12,6 +12,9 @@ mod tests {
     include!("tests/agent_browser.rs");
     include!("tests/workflow_panel.rs");
     include!("tests/background_subagents.rs");
+    include!("tests/background_subagents_lifecycle.rs");
+    include!("tests/background_subagents_navigation.rs");
+    include!("tests/background_subagents_nested.rs");
     include!("tests/agent_browser_cache.rs");
     include!("tests/subagent_history.rs");
     include!("tests/render_frames.rs");
