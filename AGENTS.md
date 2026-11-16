@@ -30,6 +30,11 @@ Os alvos `notes`, `prepare`, `tag`, `release`, `dist` e `publish` estão desabil
 - **Arquivos de referência do upstream não são editados.** `docs/releases/` é histórico do Orcacode. `docs/external/` tem regras próprias de sincronização descritas no README da pasta.
 - **Planos vão em `docs/plan/`.** Ao concluir ou mudar o estado de um plano, atualize o cabeçalho com estado e data.
 
+## Autenticação, providers e modelos locais
+
+- Antes de alterar `crates/cli/src/auth/`, `crates/provider-auth/`, `crates/cli/src/config/`, `crates/model-providers/`, `crates/cli/src/msg.rs`, `crates/cli/src/run_args.rs` ou credenciais, leia `docs/ENGINEERING_ROADMAP_AUTH_AND_LOCAL_MODELS.md`.
+- Esse roadmap é documental. Não inicie implementação nessas áreas sem aprovação da especificação (Fase 3).
+
 ## Limite de tamanho de arquivo
 
 - Cada `.rs` em `crates/` deve ter menos de 600 linhas (`ci/check-source-size.sh`, limite 599).
