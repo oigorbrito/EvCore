@@ -80,8 +80,13 @@ jobs:
         with:
           key: clippy
 
+      # Documented exception, 2026-11-17: result_large_err is allowed for the
+      # whole workspace because its findings sit in harness-core, which must not
+      # change without an explicit request and human review. The lint measures
+      # the size of error types, and no measured failure is attributed to it.
+      # Revisit with the decision record in AGENTS.md.
       - name: clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::result_large_err
 
   test:
     name: cargo test
