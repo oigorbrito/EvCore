@@ -9,6 +9,11 @@ Instruções para agentes de programação neste repositório (EvCore). Os fatos
 - Dois binários do mesmo crate `orcacode`: `evcore` (entrada pública) e `orcacode` (compatibilidade).
 - Não há release. Não adicione tags, workflows de release, publicação ou passos que enviem binários. Ver `CONTRIBUTING.md` e `ci/README.md`.
 
+## Filosofia de engenharia
+
+- Quero decisões de engenharia baseadas em evidências reproduzíveis, priorizando confiabilidade operacional, simplicidade de uso e manutenção, sem sacrificar funcionalidades.
+- Não confunda código que compila, testes automatizados aprovados e produto operacionalmente validado. São níveis diferentes de evidência.
+
 ## Nome canônico
 
 - O nome do produto é **EvCore**. Use esse nome em texto novo e em qualquer texto visível que você alterar.
