@@ -1,3 +1,4 @@
+mod login;
 mod runs;
 mod sidekick;
 #[cfg(test)]
@@ -505,65 +506,33 @@ pub(crate) async fn worker<F>(
                 });
             }
             WorkerCmd::LoginProvider { provider } => {
-                if let Some(task) = login_task.take() {
-                    task.abort();
-                }
-                login_attempt = login_attempt.wrapping_add(1);
-                let attempt = login_attempt;
-                let progress_ui = ui.clone();
-                let completion_tx = command_tx.clone();
-                login_task = Some(tokio::spawn(async move {
-                    let result = crate::auth::login(provider, move |message| {
-                        let _ = progress_ui.send(UiMsg::Notice(message));
-                    })
-                    .await;
-                    let _ = completion_tx.send(WorkerCmd::LoginFinished {
-                        provider,
-                        attempt,
-                        result,
-                    });
-                }));
+                login::provider(
+                    &mut login_attempt,
+                    &mut login_task,
+                    &ui,
+                    &command_tx,
+                    provider,
+                );
             }
             WorkerCmd::LoginFinished {
                 provider,
                 attempt,
                 result,
             } => {
-                if attempt != login_attempt {
-                    continue;
-                }
-                login_task = None;
-                match result {
-                    Ok(()) => {
-                        let mut candidate = endpoint.clone();
-                        candidate.provider = provider;
-                        candidate.base_url = provider.base_url().into();
-                        candidate.api_key = None;
-                        candidate.reasoning_effort = None;
-                        let requested = config::stored_model(provider.label());
-                        candidate.model = match candidate.catalog_model(requested.as_deref()).await
-                        {
-                            Ok(model) => model,
-                            Err(error) => {
-                                let _ = ui.send(UiMsg::Notice(format!(
-                                    "login succeeded, but model catalog failed: {error}"
-                                )));
-                                continue;
-                            }
-                        };
-                        endpoint = candidate;
-                        let _ = config::save_provider(provider.label());
-                        (agent, subagent) = rebuild(&mut build, &endpoint, false, &subagent);
-                        spawn_window_probe(&endpoint, ui.clone(), context_capacity.clone());
-                        let _ = ui.send(UiMsg::ProviderChanged {
-                            provider,
-                            model: endpoint.model.clone(),
-                        });
-                    }
-                    Err(error) => {
-                        let _ = ui.send(UiMsg::Notice(format!("login failed: {error}")));
-                    }
-                }
+                login::finished(
+                    &mut agent,
+                    &mut subagent,
+                    &mut build,
+                    &mut endpoint,
+                    login_attempt,
+                    &mut login_task,
+                    &context_capacity,
+                    &ui,
+                    provider,
+                    attempt,
+                    result,
+                )
+                .await;
             }
             WorkerCmd::SetModel {
                 id,
