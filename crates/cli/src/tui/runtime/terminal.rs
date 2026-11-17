@@ -91,23 +91,6 @@ fn recent_sessions(workspace_root: &str) -> Vec<crate::tui::components::welcome:
         .collect()
 }
 
-#[cfg(test)]
-mod resume_tests {
-    use super::*;
-
-    #[test]
-    fn resume_hint_needs_only_the_session_id() {
-        assert!(resume_hint(None).is_none());
-        assert_eq!(
-            resume_hint(Some("session-id")).unwrap(),
-            format!(
-                "\nResume this session with:\n  {} resume session-id",
-                env!("CARGO_BIN_NAME")
-            )
-        );
-    }
-}
-
 /// Move the transcript view by `delta` lines: positive scrolls back
 /// through history, negative returns toward the newest line. The upper
 /// bound belongs to the renderer, which is the only place that knows how
@@ -246,4 +229,21 @@ pub(crate) fn push_notice(app: &mut App, text: impl Into<String>) {
 /// error color so severity and origin are two separate cues.
 pub(crate) fn push_error(app: &mut App, text: impl Into<String>) {
     app.push_line(Notification::error(text).line());
+}
+
+#[cfg(test)]
+mod resume_tests {
+    use super::*;
+
+    #[test]
+    fn resume_hint_needs_only_the_session_id() {
+        assert!(resume_hint(None).is_none());
+        assert_eq!(
+            resume_hint(Some("session-id")).unwrap(),
+            format!(
+                "\nResume this session with:\n  {} resume session-id",
+                env!("CARGO_BIN_NAME")
+            )
+        );
+    }
 }

@@ -20,8 +20,8 @@ pub(crate) fn mutation_diff_preview_lines(
     const MAX_EDIT_DIFF_ROWS: usize = 6;
 
     let mut changed = Vec::new();
-    match tool.tool_name.as_str() {
-        "edit_file" => match tool
+    if tool.tool_name == "edit_file" {
+        match tool
             .input
             .get("edits")
             .and_then(serde_json::Value::as_array)
@@ -32,8 +32,7 @@ pub(crate) fn mutation_diff_preview_lines(
                 }
             }
             None => push_exact_edit(&mut changed, &tool.input),
-        },
-        _ => {}
+        }
     }
 
     let hidden = changed.len().saturating_sub(MAX_EDIT_DIFF_ROWS);

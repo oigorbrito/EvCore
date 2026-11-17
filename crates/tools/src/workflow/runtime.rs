@@ -459,9 +459,7 @@ impl<M: Model + Clone + 'static> Runtime<M> {
     /// `answer` string), or, for a run that did not finish `Done`, an
     /// error that leads with the cause and carries the same JSON.
     fn finish(&self, id: u64, outcome: RunOutcome) -> Option<SubagentNotification> {
-        let Some(mut run) = self.runs.lock().unwrap().remove(&id) else {
-            return None;
-        };
+        let mut run = self.runs.lock().unwrap().remove(&id)?;
         let config = self.subagent.background_config().unwrap();
         for spawn in run.live.keys() {
             config.manager.cancel(*spawn);

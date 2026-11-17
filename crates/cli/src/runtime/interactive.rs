@@ -346,6 +346,12 @@ pub(crate) async fn run_mode(mut cfg: Config) -> ExitCode {
 }
 
 #[allow(clippy::too_many_arguments)]
+type AgentParts = (
+    Agent<Arc<dyn Model>>,
+    Arc<orca_harness_tools::SubagentTool<Arc<dyn Model>>>,
+);
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_agent<M: Model + Clone + 'static>(
     model: M,
     inherited_provider: &str,
@@ -372,10 +378,7 @@ pub(crate) fn build_agent<M: Model + Clone + 'static>(
     workflow_store: &orca_harness_tools::WorkflowStore,
     completions: &CompletionInbox,
     worker: &mpsc::UnboundedSender<crate::msg::WorkerCmd>,
-) -> (
-    Agent<Arc<dyn Model>>,
-    Arc<orca_harness_tools::SubagentTool<Arc<dyn Model>>>,
-) {
+) -> AgentParts {
     // MCP visibility is a host-side model concern: core keeps its sacred,
     // immutable schema snapshot while this adapter filters it on each
     // provider request using the catalog's current selections.

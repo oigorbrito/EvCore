@@ -79,7 +79,7 @@ pub(super) async fn finished<F>(
             };
             *endpoint = candidate;
             let _ = config::save_provider(provider.label());
-            (*agent, *subagent) = rebuild(build, &*endpoint, false, &**subagent);
+            (*agent, *subagent) = rebuild(build, &*endpoint, false, subagent);
             spawn_window_probe(&*endpoint, ui.clone(), context_capacity.clone());
             let _ = ui.send(UiMsg::ProviderChanged {
                 provider,

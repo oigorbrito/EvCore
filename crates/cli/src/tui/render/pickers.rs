@@ -97,7 +97,7 @@ pub(crate) fn sidekick_stop_lines(
             let model = sidekick
                 .identity
                 .as_ref()
-                .map(|identity| identity_label(identity))
+                .map(identity_label)
                 .unwrap_or_else(|| "inherited model".into());
             let tier = sidekick
                 .identity
