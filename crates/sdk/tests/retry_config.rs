@@ -53,7 +53,7 @@ impl Model for FlakyModel {
         self.calls.fetch_add(1, Ordering::SeqCst);
         let failing = self
             .failures
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
             .is_ok();
         if failing {
             return Err(ModelError::Request("transient".into()));
