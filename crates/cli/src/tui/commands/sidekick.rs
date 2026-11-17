@@ -1,11 +1,15 @@
 use tokio::sync::mpsc;
 
-use crate::msg::WorkerCmd;
-use crate::tui::components::picker::ListPicker;
 use super::super::state::{App, Overlay};
 use super::super::{push_error, push_notice};
+use crate::msg::WorkerCmd;
+use crate::tui::components::picker::ListPicker;
 
-pub(super) fn sidekick_command(app: &mut App, args: &str, worker: &mpsc::UnboundedSender<WorkerCmd>) {
+pub(super) fn sidekick_command(
+    app: &mut App,
+    args: &str,
+    worker: &mpsc::UnboundedSender<WorkerCmd>,
+) {
     const USAGE: &str = "usage: /sidekick [local|fast|mid|frontier] <task> | /sidekick stop";
     let mut parts = args.split_whitespace();
     let Some(first) = parts.next() else {
