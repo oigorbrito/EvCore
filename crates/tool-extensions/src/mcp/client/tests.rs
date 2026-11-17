@@ -1,4 +1,6 @@
+use super::tool_list::{ensure_unique_tools, parse_tool_page};
 use super::*;
+use orca_harness_core::ToolSchema;
 
 #[test]
 fn sanitized_launch_environment_allows_runtime_essentials_but_not_secrets() {
