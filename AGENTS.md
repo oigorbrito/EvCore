@@ -13,6 +13,7 @@ Instruções para agentes de programação neste repositório (EvCore). Os fatos
 
 - O nome do produto é **EvCore**. Use esse nome em texto novo e em qualquer texto visível que você alterar.
 - Não renomeie nomes de compatibilidade listados em `PROVENANCE.md` (seção "Not changed"): crates `orca-harness-*` e `orcacode`, variáveis `ORCA_*`, caminhos `orcacode/` de configuração, sessão e credenciais, o user agent `orcacode/<versão>` e identificadores de plugin. Renomear quebra configurações e credenciais existentes.
+- Não altere `LICENSE`, `NOTICE`, `PROVENANCE.md`, referências ao upstream nem os registros em `benchmarks/results/`.
 
 ## Comandos verificados
 
