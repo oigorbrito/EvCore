@@ -63,6 +63,7 @@ Os alvos `notes`, `prepare`, `tag`, `release`, `dist` e `publish` estão desabil
 - Número de desempenho só entra em documentação com data, commit, versão e máquina, e com o dado bruto ou o `manifest.json` do run no repositório.
 - Não apresente números medidos no upstream como medidas do EvCore. Diga a origem em cada tabela.
 - Antes de dar um doc por concluído, verifique os links relativos. Se mexer no manual, rode `python3 docs/external/check.py`.
+- **Gate de latência do `core-tools` é informativo desde 2026-11-18** (`benchmarks/shared/check_budgets.py`, `NON_BLOCKING`). Motivo: o mesmo commit `ce1a62d` mediu ~25 ms em `edit_file/distinct` e falhou com ~100 ms no mesmo runner dias depois, então o limite não separa regressão de código de variação do ambiente. Acurácia e os outros gates continuam bloqueando. Reabilitar só com linha de base medida no runner atual e decisão registrada aqui.
 - `benchmarks/harness-comparison/fixture/` contém dados de benchmark. Os `AGENTS.md` e `CLAUDE.md` dali valem só para o fixture, não para este projeto.
 
 ## Operação
