@@ -1,8 +1,22 @@
 # Keeps the commit-pinned actions current: Dependabot opens a PR when an
 # action's tag moves, with the new commit and the tag in the comment.
+#
+# Cargo dependencies are checked weekly too. Minor and patch updates are
+# grouped into one PR so the queue stays readable for a solo maintainer.
+# Major updates still arrive one by one, and each one needs review.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch

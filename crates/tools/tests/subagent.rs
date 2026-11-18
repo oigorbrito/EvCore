@@ -41,3 +41,7 @@ include!("subagent/background_lifecycle.rs");
 include!("subagent/routing.rs");
 include!("subagent/events.rs");
 include!("subagent/host.rs");
+include!("subagent/host_nesting_cancel.rs");
+include!("subagent/host_sidekicks.rs");
+include!("subagent/host_background.rs");
+include!("subagent/host_lifecycle.rs");
