@@ -120,6 +120,12 @@ CORE_TOOLS_BUDGETS = {
 
 INFORMATIONAL = {"process baseline"}
 
+# core-tools latency ceilings are reported but not gated (decision 2026-11-18):
+# the same commit measured ~25 ms and ~100 ms on two days of the same runner, so
+# the ceilings cannot separate a code regression from runner drift. Accuracy and
+# the other suites still gate. See AGENTS.md before re-enabling.
+NON_BLOCKING = set(CORE_TOOLS_BUDGETS)
+
 
 class Measurement(NamedTuple):
     name: str
@@ -193,6 +199,10 @@ def check(
         budget = budgets.get(item.name, default_budget)
         if budget is None:
             print(head.format(tag="INFO") + tail)
+            continue
+        if item.name in NON_BLOCKING:
+            tag = "PASS" if item.value <= budget else "WARN"
+            print(head.format(tag=tag) + tail + f"  (budget: {duration(budget)}, not gated)")
             continue
         if not enforce:
             print(head.format(tag="INFO") + tail + f"  (budget: {duration(budget)})")
