@@ -25,8 +25,7 @@ version policy.
 - `check-binary-size.sh <path>`: the uncompressed release binary must stay strictly under 6,700,000 bytes (6.7 decimal MB), or 9,000,000 bytes for a static `*-linux-musl` target, which carries its own libc.
 - `check-source-size.sh`: every source file under `crates/` stays below 600 lines.
 
-Both run in `.github/workflows/ci.yml` (the `size` job and the `lint` job);
-`check-source-size.sh` is also run by `make audit`.
+In `.github/workflows/ci.yml`, `check-source-size.sh` runs in the `lint` job, and `check-binary-size.sh` runs on the static musl binary in the `size` job, which builds `x86_64-unknown-linux-musl` with cargo-zigbuild. Clippy runs in its own `clippy` job, so a source-size failure cannot skip it. CI does not measure the darwin arm64 binary against its 6.7 MB limit. `check-source-size.sh` is also run by `make audit`.
 
 ## Parked workflows
 

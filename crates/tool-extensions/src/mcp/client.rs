@@ -6,7 +6,10 @@
 //! Server-initiated traffic is tolerated, not supported: notifications are
 //! ignored, `ping` is answered, anything else is refused with a JSON-RPC error.
 
-use std::collections::{BTreeMap, HashSet};
+mod output;
+mod tool_list;
+
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
@@ -16,9 +19,12 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
-use orca_harness_core::{ToolContext, ToolError, ToolSchema};
+use orca_harness_core::{ToolContext, ToolError};
 
 use crate::mcp::tool::McpTool;
+
+pub(crate) use output::call_output;
+use tool_list::list_all_tools;
 
 /// Protocol revisions implemented by this client, newest first.
 const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -454,194 +460,6 @@ fn parse_initialize(result: &Value) -> Result<ServerCapabilities, McpError> {
         prompts: capabilities.contains_key("prompts"),
         completions: capabilities.contains_key("completions"),
     })
-}
-
-struct ToolPage {
-    tools: Vec<(ToolSchema, String)>,
-    next_cursor: Option<String>,
-}
-
-fn ensure_unique_tools(tools: &[(ToolSchema, String)]) -> Result<(), McpError> {
-    let mut names = HashSet::new();
-    if let Some(duplicate) = tools
-        .iter()
-        .map(|(schema, _)| schema.name.as_str())
-        .find(|name| !names.insert(*name))
-    {
-        return Err(McpError::Protocol(format!(
-            "duplicate MCP tool name: {duplicate}"
-        )));
-    }
-    Ok(())
-}
-
-async fn list_all_tools(client: &McpClient) -> Result<Vec<(ToolSchema, String)>, McpError> {
-    let mut cursor = None;
-    let mut seen = HashSet::new();
-    let mut tools = Vec::new();
-    loop {
-        let params = cursor
-            .as_ref()
-            .map_or_else(|| json!({}), |cursor| json!({ "cursor": cursor }));
-        let result = client.request("tools/list", params).await?;
-        let page = parse_tool_page(client.server(), &result)?;
-        tools.extend(page.tools);
-        let Some(next) = page.next_cursor else {
-            break;
-        };
-        if !seen.insert(next.clone()) {
-            return Err(McpError::Protocol(format!(
-                "tools/list repeated cursor: {next}"
-            )));
-        }
-        cursor = Some(next);
-    }
-    ensure_unique_tools(&tools)?;
-    Ok(tools)
-}
-
-/// Parse one `tools/list` page. Nameless entries are a protocol violation;
-/// entries without a description or input schema get harmless defaults.
-fn parse_tool_page(server: &str, result: &Value) -> Result<ToolPage, McpError> {
-    let object = result
-        .as_object()
-        .ok_or_else(|| McpError::Protocol("tools/list result is not an object".into()))?;
-    let tools = object
-        .get("tools")
-        .and_then(Value::as_array)
-        .ok_or_else(|| McpError::Protocol("tools/list returned no tools array".into()))?;
-    let tools = tools
-        .iter()
-        .map(|tool| {
-            let remote = tool["name"]
-                .as_str()
-                .filter(|name| !name.is_empty())
-                .ok_or_else(|| McpError::Protocol("tools/list entry without a name".into()))?
-                .to_string();
-            let parameters = tool
-                .get("inputSchema")
-                .and_then(Value::as_object)
-                .map(|schema| Value::Object(schema.clone()))
-                .ok_or_else(|| {
-                    McpError::Protocol("tools/list entry without an inputSchema object".into())
-                })?;
-            let schema = ToolSchema {
-                name: format!("mcp__{server}__{remote}"),
-                description: tool["description"].as_str().unwrap_or("").to_string(),
-                parameters,
-            };
-            Ok((schema, remote))
-        })
-        .collect::<Result<Vec<_>, McpError>>()?;
-    let next_cursor = match object.get("nextCursor") {
-        None | Some(Value::Null) => None,
-        Some(Value::String(cursor)) if !cursor.is_empty() => Some(cursor.clone()),
-        Some(_) => {
-            return Err(McpError::Protocol(
-                "tools/list nextCursor is not a non-empty string".into(),
-            ))
-        }
-    };
-    Ok(ToolPage { tools, next_cursor })
-}
-
-/// Reduce a `tools/call` result to the model-visible output value:
-/// `structuredContent` verbatim when present, text content joined,
-/// anything richer passed through raw. Image items move to
-/// [`TOOL_IMAGES_KEY`] so providers send them as images; each leaves an
-/// `[image N]` marker in the text so interleaved order stays readable.
-pub(crate) fn call_output(result: &Value) -> Result<Value, orca_harness_core::ToolError> {
-    let object = result
-        .as_object()
-        .ok_or_else(|| orca_harness_core::ToolError::msg("tools/call result is not an object"))?;
-    if object
-        .get("isError")
-        .is_some_and(|value| !value.is_boolean())
-    {
-        return Err(orca_harness_core::ToolError::msg(
-            "tools/call isError is not a boolean",
-        ));
-    }
-    let content = object
-        .get("content")
-        .and_then(Value::as_array)
-        .ok_or_else(|| orca_harness_core::ToolError::msg("tools/call returned no content array"))?;
-    let mut images = Vec::new();
-    let mut rest = Vec::with_capacity(content.len());
-    for item in content {
-        match mcp_image(item) {
-            Some(Ok(image)) => {
-                images.push(image);
-                rest.push(json!({ "type": "text", "text": format!("[image {}]", images.len()) }));
-            }
-            Some(Err(note)) => rest.push(json!({ "type": "text", "text": note })),
-            None => rest.push(item.clone()),
-        }
-    }
-    let text = Some(rest.iter().all(|item| item["type"] == "text").then(|| {
-        rest.iter()
-            .filter_map(|item| item["text"].as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-    }));
-    if result["isError"].as_bool() == Some(true) {
-        let detail = match text.flatten().filter(|t| !t.is_empty()) {
-            Some(text) => text,
-            None => "tool reported an error".to_string(),
-        };
-        return Err(orca_harness_core::ToolError::msg(detail));
-    }
-    let output = if let Some(structured) = result.get("structuredContent").filter(|v| !v.is_null())
-    {
-        structured.clone()
-    } else {
-        match text {
-            Some(Some(text)) => json!({ "content": text }),
-            _ => json!({ "content": rest }),
-        }
-    };
-    if images.is_empty() {
-        return Ok(output);
-    }
-    let mut output = match output {
-        Value::Object(object) => object,
-        other => serde_json::Map::from_iter([("content".to_string(), other)]),
-    };
-    output.insert(TOOL_IMAGES_KEY.into(), Value::Array(images));
-    Ok(Value::Object(output))
-}
-
-/// Output key the model providers read tool images from
-/// (`orca_harness_model_providers::tool_images::TOOL_IMAGES_KEY`).
-const TOOL_IMAGES_KEY: &str = "_images";
-
-/// Image types every provider accepts as input.
-const IMAGE_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-
-/// Largest base64 payload sent per image; providers reject bigger ones.
-const MAX_IMAGE_BASE64_BYTES: usize = 5 * 1024 * 1024;
-
-/// An MCP `{"type": "image", "data", "mimeType"}` content item as a
-/// `{"media_type", "data"}` image, or a note saying why it was left out.
-/// `None` for other items and image items too malformed to recognize.
-fn mcp_image(item: &Value) -> Option<Result<Value, String>> {
-    if item["type"] != "image" {
-        return None;
-    }
-    let media_type = item["mimeType"].as_str().filter(|m| !m.is_empty())?;
-    let data = item["data"].as_str().filter(|d| !d.is_empty())?;
-    if !IMAGE_TYPES.contains(&media_type) {
-        return Some(Err(format!(
-            "[image omitted: {media_type} is not supported]"
-        )));
-    }
-    if data.len() > MAX_IMAGE_BASE64_BYTES {
-        return Some(Err(format!(
-            "[image omitted: {:.1} MB is over the 5 MB limit]",
-            data.len() as f64 / (1024.0 * 1024.0)
-        )));
-    }
-    Some(Ok(json!({ "media_type": media_type, "data": data })))
 }
 
 #[cfg(test)]

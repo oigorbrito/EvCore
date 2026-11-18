@@ -1,8 +1,10 @@
 //! Native image input from the macOS clipboard.
 
+#[cfg(target_os = "macos")]
 use std::process::Command;
 
 pub(super) const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+#[cfg(any(target_os = "macos", test))]
 const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
 
 #[cfg(target_os = "macos")]
@@ -42,6 +44,7 @@ pub(super) fn read() -> Result<Option<Vec<u8>>, String> {
     Err("clipboard image paste is only supported on macOS".into())
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn interpret(success: bool, bytes: Vec<u8>, stderr: &[u8]) -> Result<Option<Vec<u8>>, String> {
     if !success {
         let detail = String::from_utf8_lossy(stderr);

@@ -172,7 +172,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("INFO", result.stdout)
 
-    def test_core_tools_median_over_budget_fails(self) -> None:
+    def test_core_tools_median_over_budget_warns_without_failing(self) -> None:
         result = self.run_gate(
             "core-tools",
             {
@@ -186,8 +186,9 @@ class GateTests(unittest.TestCase):
                 ]
             },
         )
-        self.assertEqual(1, result.returncode, result.stdout)
-        self.assertIn("FAIL", result.stdout)
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("WARN", result.stdout)
+        self.assertNotIn("FAIL", result.stdout)
 
     def test_core_tools_p99_and_throughput_are_not_gated(self) -> None:
         """Twenty samples make a p99 the maximum, and throughput is

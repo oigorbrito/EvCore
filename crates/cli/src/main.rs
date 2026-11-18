@@ -8,6 +8,7 @@ mod auth;
 mod auto_approval;
 mod changelog;
 mod config;
+mod context_window;
 mod extensions;
 mod headless;
 mod instructions;
@@ -46,6 +47,7 @@ use crate::mode::{Mode, ModeHandle};
 use crate::msg::{Provider, UiMsg};
 use crate::plan::PlanArea;
 pub(crate) use crate::run_args::parse_run_args;
+use context_window::spawn_window_probe;
 
 const ORCACODE_USER_AGENT: &str = concat!("orcacode/", env!("CARGO_PKG_VERSION"));
 const ORCACODE_REFERER: &str = env!("CARGO_PKG_REPOSITORY");
@@ -76,89 +78,6 @@ impl Planning {
         true
     }
 }
-
-const USAGE: &str = "\
-orcacode — terminal host for Orca Harness
-
-USAGE:
-  orcacode [OPTIONS]                interactive session
-  orcacode [OPTIONS] -p \"prompt\"    headless single run (streams to stdout)
-  orcacode resume ID [OPTIONS]      resume a recorded session (same as --resume ID)
-  orcacode update                   install the latest release
-  orcacode plugin <COMMAND>         manage Agent Plugin packages
-
-OPTIONS:
-  --model NAME       model id (env ORCA_MODEL; otherwise selected from the
-                     provider's live catalog)
-  --base-url URL     API root; native Messages API with --anthropic,
-                     otherwise OpenAI-compatible (env ORCA_BASE_URL;
-                     default: api.openai.com if OPENAI_API_KEY is set,
-                     otherwise http://localhost:11434/v1)
-  --api-key KEY      API key (provider environment variable, including
-                     ANTHROPIC_API_KEY for Anthropic,
-                     AI_GATEWAY_API_KEY for Vercel AI Gateway,
-                     CHEAPERINFERENCE_API_KEY for CheaperInference)
-  --firecrawl-key K  Firecrawl key (env FIRECRAWL_API_KEY); enables the
-                     web_search tool
-  --openrouter       use OpenRouter (openrouter.ai) as the endpoint
-  --anthropic        use the native Anthropic Messages API
-  --list-models      print the endpoint's model catalog and exit
-  --workspace DIR    tool workspace root (default: current directory)
-  --max-steps N      model invocations per run (default 48)
-  --max-output-tokens N
-                     output-token cap (Anthropic default: 8192)
-  --effort LEVEL     reasoning effort (for example low, medium, high)
-  --prompt-cache     enable provider prompt-cache hints (default)
-  --no-prompt-cache  disable provider prompt-cache hints
-  --tools NAMES      headless: comma-separated tool allowlist
-  --bare             headless: skip user instructions, skills, memory,
-                     MCP, compute, subagents, and web tools; defaults
-                     --tools to read_file,grep,glob
-  --subagent-depth N subagent nesting levels, positive integer (env ORCA_SUBAGENT_DEPTH;
-                     default 1; /subagents adjusts it live in the TUI)
-  --theme NAME       theme: default, mono, dracula,
-                     solarized-dark, one-dark, monokai, nord, orca
-  --plan             start in plan mode: read-only tools, and docs/plan/
-                     the only writable directory — the agent decides
-                     whether to write a plan (/mode opens a picker)
-  --orchestrate      start in orchestrate mode: the agent investigates
-                     and delegates substantial work; basic edits permitted;
-                     spawned workers keep their full tools
-  --normal           start in normal mode (default): gated tools ask for approval
-  --auto             start in auto mode: safe tools and guarded
-                     file edits run; risk-bearing actions are reviewed
-  --yolo             start in yolo mode: every gated tool runs without
-                     approval prompts, interactive or headless. The
-                     status line reads yolo for the whole session
-                     (/mode opens a picker)
-  --continue         resume the latest recorded session for this workspace
-  --resume ID        resume a recorded session by id (a unique prefix works)
-  --no-session       do not record this session to disk
-  --json             headless: emit NDJSON harness events on stdout
-  --auto-approve     headless: allow shell/write/edit without approval
-                     (implied by --yolo)
-  -p, --prompt TEXT  headless prompt
-  -h, --help         show this help
-  -v, -V, --version  print the version and exit
-
-In the TUI, /provider selects local, OpenAI API, OpenRouter, Vercel AI Gateway,
-CheaperInference, Anthropic, or the OpenAI Codex ChatGPT-subscription provider.
-Selecting openai-codex starts the application's device login; an existing
-official Codex login is also imported.
-No API key is required. /models [filter] opens the model catalog,
-and /settings changes the provider, model, theme, and API key.
-API keys entered in the TUI, the active provider, the theme, and the
-last model picked per provider are saved to
-~/.config/orcacode/config.json and reused on later runs; flags and
-environment variables above always win over the saved values.
-Approval prompts accept y (once), a (always, this session), A (always,
-saved for this workspace only; revoke in /settings), and n (deny).
-Sessions are recorded under ~/.config/orcacode/sessions/ per workspace;
-/sessions in the TUI lists and resumes them, /rewind drops the last
-turns, and /fork branches the conversation into a new session.
-Standing instructions are read at startup from AGENTS.md beside
-config.json, in the workspace, and in the workspace's .orca/ folder.
-";
 
 #[derive(Clone)]
 pub struct Config {
@@ -564,84 +483,6 @@ impl Endpoint {
             });
         Arc::new(model)
     }
-}
-
-/// Discover the active model's context window from the endpoint, best
-/// effort, and report it to the UI. OpenRouter's catalog carries
-/// `context_length`; a local ollama exposes it via the native
-/// `/api/show`. Plain OpenAI endpoints publish nothing — `None`.
-fn spawn_window_probe(
-    endpoint: &Endpoint,
-    ui: mpsc::UnboundedSender<UiMsg>,
-    capacity: orca_harness_extensions::ContextCapacity,
-) {
-    // Never let a newly selected model inherit the previous model's limit,
-    // or let a slower probe for an older selection overwrite a newer one.
-    let revision = capacity.begin_update();
-    let endpoint = endpoint.clone();
-    tokio::spawn(async move {
-        let window = match endpoint.provider {
-            // `/models` lists dated ids, so a configured alias never matches
-            // the catalog; resolve the one model instead of paging all of them.
-            Provider::Anthropic => orca_harness_model_providers::anthropic::retrieve_model(
-                &endpoint.base_url,
-                endpoint.api_key.as_deref(),
-                &endpoint.model,
-            )
-            .await
-            .ok()
-            .and_then(|model| model.context_length),
-            Provider::OpenAiCodex
-            | Provider::OpenRouter
-            | Provider::Vercel
-            | Provider::CheaperInference => endpoint
-                .list_models()
-                .await
-                .ok()
-                .and_then(|models| {
-                    models
-                        .into_iter()
-                        .find(|candidate| candidate.id == endpoint.model)
-                })
-                .and_then(|candidate| candidate.context_length),
-            Provider::Local => ollama_context_window(&endpoint.base_url, &endpoint.model).await,
-            Provider::OpenAi => None,
-        };
-        if capacity.finish_update(revision, window) {
-            let _ = ui.send(UiMsg::ContextWindow(window));
-        }
-    });
-}
-
-/// Ollama native `/api/show`: prefer an explicit `num_ctx` parameter (the
-/// serving window) over the model's trained maximum (`*.context_length`).
-async fn ollama_context_window(base_url: &str, model: &str) -> Option<u64> {
-    let host = base_url.trim_end_matches('/').trim_end_matches("/v1");
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .ok()?;
-    let body: serde_json::Value = client
-        .post(format!("{host}/api/show"))
-        .json(&serde_json::json!({"model": model}))
-        .send()
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
-    let num_ctx = body["parameters"].as_str().and_then(|params| {
-        params.lines().find_map(|line| {
-            let mut parts = line.split_whitespace();
-            (parts.next() == Some("num_ctx")).then(|| parts.next()?.parse().ok())?
-        })
-    });
-    num_ctx.or_else(|| {
-        body["model_info"]
-            .as_object()?
-            .iter()
-            .find_map(|(key, value)| key.ends_with(".context_length").then(|| value.as_u64())?)
-    })
 }
 
 mod runtime;

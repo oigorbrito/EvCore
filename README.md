@@ -86,8 +86,8 @@ through the Rust SDK.
 ## Install
 
 EvCore has no published release yet, and its installers and update channel
-are not configured. Build it from source with Rust stable (selected by
-`rust-toolchain.toml`):
+are not configured. Build it from source with the Rust version pinned in
+`rust-toolchain.toml` (1.100.0):
 
 ```sh
 git clone https://github.com/oigorbrito/EvCore

@@ -1,6 +1,5 @@
-use super::harness::{
-    bind_workflow_stage, handle_harness_event, handle_subagent_event, start_subagent,
-};
+use super::harness::{handle_harness_event, start_subagent};
+use super::subagent::{bind_workflow_stage, handle_subagent_event};
 
 use ratatui::text::{Line, Span};
 use tokio::sync::mpsc;

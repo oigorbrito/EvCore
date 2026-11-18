@@ -133,7 +133,7 @@ impl SessionFile {
                 Some(SessionFile { path, meta })
             })
             .collect();
-        sessions.sort_by(|a, b| b.meta.created_at.cmp(&a.meta.created_at));
+        sessions.sort_by_key(|session| std::cmp::Reverse(session.meta.created_at));
         sessions
     }
 

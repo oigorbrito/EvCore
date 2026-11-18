@@ -1,4 +1,7 @@
+mod login;
+mod refine;
 mod runs;
+mod sidekick;
 #[cfg(test)]
 use runs::run_interactive_context;
 use runs::{process_notification_prompt, rotate_for_clear, run_and_report};
@@ -229,68 +232,15 @@ pub(crate) async fn worker<F>(
                 }
             }
             WorkerCmd::SidekickStart { task, tier } => {
-                let mut request = orca_harness_tools::SubagentRequest::new(task.clone());
-                if let Some(tier) = tier {
-                    let Some(model) = subagent.max_depth_preferred_model(&tier) else {
-                        let _ = ui.send(UiMsg::Notice(format!(
-                            "sidekick start failed: no saved preferred {tier} model"
-                        )));
-                        continue;
-                    };
-                    request = request.model(model);
-                }
-                let call_id = format!("sidekick-start-{}", background_subagent_sequence);
-                background_subagent_sequence += 1;
-                let _ = ui.send(UiMsg::Event(HarnessEvent::ToolCall {
-                    tool_call_id: call_id.clone(),
-                    tool_name: "subagent".into(),
-                    input: serde_json::json!({"task": task, "persistent": true}),
-                }));
-                match subagent.start_sidekick(request) {
-                    Ok(ack) => {
-                        let spawn_id = ack.spawn_id;
-                        let identity = ack.identity.clone();
-                        let started_call_id = format!("sidekick-{spawn_id}");
-                        let _ = ui.send(UiMsg::SubagentStarted {
-                            id: spawn_id,
-                            parent_id: None,
-                            depth: 0,
-                            call_id: started_call_id,
-                            task,
-                            identity,
-                            run: None,
-                            stage: None,
-                        });
-                        let _ = ui.send(UiMsg::Event(HarnessEvent::ToolResult {
-                            tool_call_id: call_id,
-                            tool_name: "subagent".into(),
-                            output: ack.into_value(),
-                            is_error: false,
-                        }));
-                    }
-                    Err(error) => {
-                        let message = format!("sidekick start failed: {error}");
-                        let _ = ui.send(UiMsg::Event(HarnessEvent::ToolResult {
-                            tool_call_id: call_id,
-                            tool_name: "subagent".into(),
-                            output: serde_json::json!({"error": message}),
-                            is_error: true,
-                        }));
-                        let _ = ui.send(UiMsg::Notice(message));
-                    }
-                }
+                sidekick::start(
+                    &subagent,
+                    &ui,
+                    &mut background_subagent_sequence,
+                    task,
+                    tier,
+                );
             }
-            WorkerCmd::SidekickStop { spawn_id } => match subagent.stop_sidekick(spawn_id) {
-                Ok(()) => {
-                    let _ = ui.send(UiMsg::Event(HarnessEvent::ToolResult {
-                    tool_call_id: format!("sidekick-stop-{spawn_id}"), tool_name: "subagent".into(),
-                    output: serde_json::json!({"spawnId": spawn_id, "status": "stopped", "termination": "stopped"}), is_error: false,
-                }));
-                }
-                Err(error) => {
-                    let _ = ui.send(UiMsg::Notice(format!("sidekick stop failed: {error}")));
-                }
-            },
+            WorkerCmd::SidekickStop { spawn_id } => sidekick::stop(&subagent, &ui, spawn_id),
             WorkerCmd::Clear => {
                 let (fresh, new_session_id) = match rotate_for_clear(&system, session.as_deref()) {
                     Ok(rotated) => rotated,
@@ -328,83 +278,9 @@ pub(crate) async fn worker<F>(
                 }
             }
             WorkerCmd::Refine => {
-                // A one-shot proposer pass over a scratch context: the
-                // user's conversation is read, never written. The model
-                // is built fresh from the live endpoint so provider and
-                // model switches are always respected.
-                let model = endpoint.build_model_for_ui(Some(ui.clone()));
-                let existing: Vec<(String, String)> = skills
-                    .catalog()
-                    .into_iter()
-                    .map(|entry| (entry.name, entry.description))
-                    .collect();
-                let result =
-                    crate::refine::run_proposer(model.as_ref(), context.messages(), &existing)
-                        .await;
-                let result = match result {
-                    // Declining is success, not silence: say why and stop.
-                    Ok(crate::refine::Refined::Nothing(reason)) => {
-                        let reason = match reason.is_empty() {
-                            true => String::new(),
-                            false => format!(": {reason}"),
-                        };
-                        let _ = ui.send(UiMsg::Notice(format!(
-                            "refine: no skill proposed — nothing in this trajectory is worth \
-                             packaging{reason}"
-                        )));
-                        continue;
-                    }
-                    Ok(crate::refine::Refined::Skill(outcome)) => Ok(outcome),
-                    Err(err) => Err(err),
-                };
-                let proposal = result.as_ref().ok().map(|outcome| outcome.proposal.clone());
-                if ui.send(UiMsg::RefineDone(Box::new(result))).is_err() {
+                if !refine::run(&endpoint, &skills, &context, &ui, &mut refine_applied).await {
                     return;
                 }
-                let Some(proposal) = proposal else { continue };
-                // Accept/reject rides the standard tool-approval gate
-                // (y/n/a/A) rather than a bespoke prompt.
-                let (respond, decision) = tokio::sync::oneshot::channel();
-                let request = crate::msg::ApprovalRequest {
-                    tool_name: "refine".into(),
-                    detail: format!("apply skill {}", proposal.name),
-                    yes_no: true,
-                    respond,
-                };
-                if ui.send(UiMsg::Approval(request)).is_err() {
-                    return;
-                }
-                use crate::msg::ApprovalResponse as R;
-                let approved = matches!(
-                    decision.await,
-                    Ok(R::AllowOnce | R::AllowAlways | R::AllowAlwaysSave)
-                );
-                if !approved {
-                    let _ = ui.send(UiMsg::Notice(format!(
-                        "refine: proposal {} discarded",
-                        proposal.name
-                    )));
-                    continue;
-                }
-                let applied = skills
-                    .project_root()
-                    .map(std::path::Path::to_path_buf)
-                    .ok_or_else(|| "no project skills folder to apply into".to_string())
-                    .and_then(|root| crate::refine::apply(&root, &proposal));
-                let notice = match applied {
-                    Ok(applied) => {
-                        skills.reload();
-                        let notice = format!(
-                            "applied skill {} → {} · /refine undo reverts it",
-                            proposal.name,
-                            workspace_relative(&applied.dir)
-                        );
-                        refine_applied.push(applied);
-                        notice
-                    }
-                    Err(err) => format!("refine apply failed: {err}"),
-                };
-                let _ = ui.send(UiMsg::Notice(notice));
             }
             WorkerCmd::RefineUndo => {
                 let notice = match refine_applied.pop() {
@@ -557,65 +433,33 @@ pub(crate) async fn worker<F>(
                 });
             }
             WorkerCmd::LoginProvider { provider } => {
-                if let Some(task) = login_task.take() {
-                    task.abort();
-                }
-                login_attempt = login_attempt.wrapping_add(1);
-                let attempt = login_attempt;
-                let progress_ui = ui.clone();
-                let completion_tx = command_tx.clone();
-                login_task = Some(tokio::spawn(async move {
-                    let result = crate::auth::login(provider, move |message| {
-                        let _ = progress_ui.send(UiMsg::Notice(message));
-                    })
-                    .await;
-                    let _ = completion_tx.send(WorkerCmd::LoginFinished {
-                        provider,
-                        attempt,
-                        result,
-                    });
-                }));
+                login::provider(
+                    &mut login_attempt,
+                    &mut login_task,
+                    &ui,
+                    &command_tx,
+                    provider,
+                );
             }
             WorkerCmd::LoginFinished {
                 provider,
                 attempt,
                 result,
             } => {
-                if attempt != login_attempt {
-                    continue;
-                }
-                login_task = None;
-                match result {
-                    Ok(()) => {
-                        let mut candidate = endpoint.clone();
-                        candidate.provider = provider;
-                        candidate.base_url = provider.base_url().into();
-                        candidate.api_key = None;
-                        candidate.reasoning_effort = None;
-                        let requested = config::stored_model(provider.label());
-                        candidate.model = match candidate.catalog_model(requested.as_deref()).await
-                        {
-                            Ok(model) => model,
-                            Err(error) => {
-                                let _ = ui.send(UiMsg::Notice(format!(
-                                    "login succeeded, but model catalog failed: {error}"
-                                )));
-                                continue;
-                            }
-                        };
-                        endpoint = candidate;
-                        let _ = config::save_provider(provider.label());
-                        (agent, subagent) = rebuild(&mut build, &endpoint, false, &subagent);
-                        spawn_window_probe(&endpoint, ui.clone(), context_capacity.clone());
-                        let _ = ui.send(UiMsg::ProviderChanged {
-                            provider,
-                            model: endpoint.model.clone(),
-                        });
-                    }
-                    Err(error) => {
-                        let _ = ui.send(UiMsg::Notice(format!("login failed: {error}")));
-                    }
-                }
+                login::finished(
+                    &mut agent,
+                    &mut subagent,
+                    &mut build,
+                    &mut endpoint,
+                    login_attempt,
+                    &mut login_task,
+                    &context_capacity,
+                    &ui,
+                    provider,
+                    attempt,
+                    result,
+                )
+                .await;
             }
             WorkerCmd::SetModel {
                 id,

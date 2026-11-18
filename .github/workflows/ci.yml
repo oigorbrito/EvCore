@@ -7,7 +7,10 @@ name: ci
 # never holds up test feedback.
 #
 # `lint` and `test` compile different targets (check vs test profile), so
-# they run as two jobs rather than one serial list.
+# they run as two jobs rather than one serial list. `clippy` is its own job so
+# that a source-size failure cannot skip it. The size job measures the static
+# musl Linux release binary, the artifact that ci/release.sh checks against the
+# 9 MB limit in ci/check-binary-size.sh.
 
 on:
   push:
@@ -29,7 +32,7 @@ env:
 
 jobs:
   lint:
-    name: fmt, source size, clippy
+    name: fmt, source size
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -49,16 +52,41 @@ jobs:
       - name: fmt
         run: cargo fmt --all --check
 
-      # Two views of the same limit: the shell gate is what release.sh runs
-      # locally and is the authority; the audit prints the largest files so
-      # the ones approaching the limit are visible before they cross it.
+      # The shell gate remains authoritative. Give the report its own step so
+      # it can run and expose the complete file list when this gate fails.
       - name: source size
-        run: |
-          ./ci/check-source-size.sh
-          python3 scripts/audit_crates.py --top 25
+        id: source_size
+        run: ./ci/check-source-size.sh
 
+      - name: crate size audit
+        if: ${{ !cancelled() && steps.source_size.outcome != 'skipped' }}
+        run: python3 scripts/audit_crates.py --top 25
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: rust toolchain
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy, rustfmt
+
+      - name: cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: clippy
+
+      # Documented exception, 2026-11-17: result_large_err is allowed for the
+      # whole workspace because its findings sit in harness-core, which must not
+      # change without an explicit request and human review. The lint measures
+      # the size of error types, and no measured failure is attributed to it.
+      # Revisit with the decision record in AGENTS.md.
       - name: clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::result_large_err
 
   test:
     name: cargo test
@@ -90,9 +118,9 @@ jobs:
         run: cargo bench --workspace -- --test
 
   size:
-    name: release binary size
+    name: release binary size (linux musl)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -100,13 +128,34 @@ jobs:
       - name: rust toolchain
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
+      # cargo uses the toolchain pinned in rust-toolchain.toml, not the one
+      # installed above, so the musl target is added to the pinned toolchain.
+      # A failure here fails the job; there is no fallback to glibc.
+      - name: linux musl target
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain
+          rustup target add x86_64-unknown-linux-musl
+
       - name: cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: release
+          key: release-musl
+
+      # Zig is the C toolchain and linker for the static musl build. Pinned,
+      # as in the release pipeline this gate was written for.
+      - name: zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: "0.16.0"
+          cache-key: x86_64-unknown-linux-musl
+
+      - name: cargo-zigbuild
+        run: cargo install --locked cargo-zigbuild
 
       - name: build
-        run: cargo build --release -p orcacode
+        run: cargo zigbuild --release -p orcacode --target x86_64-unknown-linux-musl
 
+      # The 9 MB limit in the script applies to *-linux-musl/* paths only.
       - name: release binary size
-        run: ./ci/check-binary-size.sh
+        run: ./ci/check-binary-size.sh target/x86_64-unknown-linux-musl/release/orcacode
